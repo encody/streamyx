@@ -1,3 +1,9 @@
+# ETHTokyo Project: Streamyx
+
+(Psst: Hey Polygon, [here's our #onPolygon tweet](https://twitter.com/sudo_build/status/1647316916799938560).)
+
+# Next.js project
+
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
 ## Getting Started

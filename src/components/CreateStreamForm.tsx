@@ -1,4 +1,3 @@
-import { FormLabel, Input } from '@chakra-ui/react';
 import { useCreateStream } from '@livepeer/react';
 import React, { useMemo, useState } from 'react';
 
@@ -20,15 +19,6 @@ export const CreateStreamForm: React.FC = () => {
         onChange={(e) => setStreamName(e.target.value)}
       />
 
-      {stream?.playbackId && (
-        <Player
-          title={stream?.name}
-          playbackId={stream?.playbackId}
-          autoPlay
-          muted
-        />
-      )}
-
       <div>
         {!stream && (
           <button
@@ -39,6 +29,24 @@ export const CreateStreamForm: React.FC = () => {
           >
             Create Stream
           </button>
+        )}
+        {stream && (
+          <>
+            <p>
+              <strong>Congratulations!</strong>
+            </p>
+            <p>Your stream has been created.</p>
+            <p>
+              Here are the details. Save these for when you want to start
+              streaming!
+            </p>
+            <p>
+              <strong>Stream URL:</strong> <code>{stream.rtmpIngestUrl}</code>
+            </p>
+            <p>
+              <strong>Stream Key:</strong> <code>{stream.streamKey}</code>
+            </p>
+          </>
         )}
       </div>
     </div>
