@@ -8,10 +8,12 @@ import {
   studioProvider,
 } from '@livepeer/react';
 import * as React from 'react';
+import { ThirdwebProvider } from '@thirdweb-dev/react';
+import { STUDIO_API_KEY } from '@/vars';
 
 const livepeerClient = createReactClient({
   provider: studioProvider({
-    apiKey: process.env.NEXT_PUBLIC_STUDIO_API_KEY!,
+    apiKey: STUDIO_API_KEY,
   }),
 });
 
@@ -27,8 +29,10 @@ const theme: ThemeConfig = {
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <LivepeerConfig client={livepeerClient} theme={theme}>
-      <Component {...pageProps} />
-    </LivepeerConfig>
+    <ThirdwebProvider activeChain="mumbai">
+      <LivepeerConfig client={livepeerClient} theme={theme}>
+        <Component {...pageProps} />
+      </LivepeerConfig>
+    </ThirdwebProvider>
   );
 }

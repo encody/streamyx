@@ -1,0 +1,2 @@
+export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!;
+export const STUDIO_API_KEY = process.env.NEXT_PUBLIC_STUDIO_API_KEY!;
