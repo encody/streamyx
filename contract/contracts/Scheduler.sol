@@ -13,20 +13,23 @@ import {
     SuperTokenV1Library
 } from "@superfluid-finance/ethereum-contracts/contracts/apps/SuperTokenV1Library.sol";
 
-import "@thirdweb-dev/contracts/base/ERC721Base.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract Scheduler {
     using SuperTokenV1Library for ISuperToken;
 
     struct Webinar {
-        address creator;
+        address host;
         string description;
-        ERC721Base nftGate;
-        ISuperToken payWithToken;
+        ERC721 nftGate;
+        address payWithToken;
         uint256 tokenCostToAttend;
+        int96 tokenRate;
         uint256 startTimestamp;
         uint256 endTimestamp;
-        address[] attendees;
+        address[] attendeesList;
+        mapping(address => bool) attendeesSet;
     }
 
     Webinar[] webinars;
@@ -34,16 +37,37 @@ contract Scheduler {
     constructor() {
     }
 
-    function createWebinar(
+    function createWebinarFlow(
         string calldata description,
-        ERC721Base nftGate,
-        ISuperToken payWithToken,
+        ERC721 nftGate,
+        address payWithToken,
+        int96 tokenRate
+    ) public returns(uint256 webinarId) {
+        require(payWithToken != address(0), "flow token address must be nonzero");
+        require(tokenRate > 0, "tokenRate must not be zero");
+
+        webinarId = webinars.length;
+
+        Webinar memory webinar;
+        webinar.host = msg.sender;
+        webinar.description = description;
+        webinar.nftGate = nftGate;
+        webinar.payWithToken = payWithToken;
+        webinar.tokenRate = tokenRate;
+
+        webinars.push(webinar);
+    }
+
+    function createWebinarFixedRate(
+        string calldata description,
+        ERC721 nftGate,
+        address payWithToken,
         uint256 tokenCostToAttend
     ) public returns(uint256 webinarId) {
         webinarId = webinars.length;
 
         Webinar memory webinar;
-        webinar.creator = msg.sender;
+        webinar.host = msg.sender;
         webinar.description = description;
         webinar.nftGate = nftGate;
         webinar.payWithToken = payWithToken;
@@ -55,15 +79,32 @@ contract Scheduler {
     function endWebinar(uint256 webinarId) public {
         require(webinarId < webinars.length, "webinar does not exist");
         Webinar storage webinar = webinars[webinarId];
-        require(webinar.creator == msg.sender);
+        require(webinar.host == msg.sender);
 
         webinar.endTimestamp = block.timestamp;
     }
 
     function attendWebinar(
         uint256 webinarId
-    ) public returns(bool) {
+    ) public {
         require(webinarId < webinars.length, "webinar does not exist");
         Webinar storage webinar = webinars[webinarId];
+        require(!webinar.attendeesSet[msg.sender], "already registered for webinar");
+
+        if (address(webinar.nftGate) != address(0)) {
+            uint256 balance = webinar.nftGate.balanceOf(msg.sender);
+            require(balance > 0, "missing NFT gate");
+        }
+
+        if (address(webinar.payWithToken) != address(0)) {
+            if (webinar.tokenRate > 0) {
+                ISuperToken(webinar.payWithToken).createFlowFrom(msg.sender, webinar.host, webinar.tokenRate);
+            } else if (webinar.tokenCostToAttend > 0) {
+                ERC20(webinar.payWithToken).transferFrom(msg.sender, webinar.host, webinar.tokenCostToAttend);
+            }
+        }
+
+        webinar.attendeesList.push(msg.sender);
+        webinar.attendeesSet[msg.sender] = true;
     }
 }
