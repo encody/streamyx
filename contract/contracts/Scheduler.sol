@@ -29,13 +29,9 @@ contract Scheduler {
         uint256 startTimestamp;
         uint256 endTimestamp;
         address[] attendeesList;
-        mapping(address => bool) attendeesSet;
     }
 
     Webinar[] webinars;
-
-    constructor() {
-    }
 
     function createWebinarFlow(
         string calldata description,
@@ -76,20 +72,43 @@ contract Scheduler {
         webinars.push(webinar);
     }
 
+    function startWebinar(uint256 webinarId) public {
+        require(webinarId < webinars.length, "webinar does not exist");
+        Webinar storage webinar = webinars[webinarId];
+        require(webinar.host == msg.sender);
+        require(webinar.startTimestamp == 0, "webinar already started");
+
+        webinar.startTimestamp = block.timestamp;
+
+        if (address(webinar.payWithToken) != address(0) && webinar.tokenRate > 0) {
+            for (uint256 i = 0; i < webinar.attendeesList.length; i++) {
+                address attendee = webinar.attendeesList[i];
+                ISuperToken(webinar.payWithToken).createFlowFrom(attendee, webinar.host, webinar.tokenRate);
+            }
+        }
+    }
+
     function endWebinar(uint256 webinarId) public {
         require(webinarId < webinars.length, "webinar does not exist");
         Webinar storage webinar = webinars[webinarId];
         require(webinar.host == msg.sender);
+        require(webinar.startTimestamp != 0, "webinar has not yet started");
+        require(webinar.endTimestamp == 0, "webinar already ended");
 
         webinar.endTimestamp = block.timestamp;
+
+        if (address(webinar.payWithToken) != address(0) && webinar.tokenRate > 0) {
+            for (uint256 i = 0; i < webinar.attendeesList.length; i++) {
+                address attendee = webinar.attendeesList[i];
+                ISuperToken(webinar.payWithToken).deleteFlowFrom(attendee, webinar.host);
+            }
+        }
     }
 
-    function attendWebinar(
-        uint256 webinarId
-    ) public {
+    function attendWebinar(uint256 webinarId) public {
         require(webinarId < webinars.length, "webinar does not exist");
         Webinar storage webinar = webinars[webinarId];
-        require(!webinar.attendeesSet[msg.sender], "already registered for webinar");
+        // TODO: efficient / fair dup attendee check
 
         if (address(webinar.nftGate) != address(0)) {
             uint256 balance = webinar.nftGate.balanceOf(msg.sender);
@@ -98,13 +117,12 @@ contract Scheduler {
 
         if (address(webinar.payWithToken) != address(0)) {
             if (webinar.tokenRate > 0) {
-                ISuperToken(webinar.payWithToken).createFlowFrom(msg.sender, webinar.host, webinar.tokenRate);
+                // flow starts when the webinar starts
             } else if (webinar.tokenCostToAttend > 0) {
                 ERC20(webinar.payWithToken).transferFrom(msg.sender, webinar.host, webinar.tokenCostToAttend);
             }
         }
 
         webinar.attendeesList.push(msg.sender);
-        webinar.attendeesSet[msg.sender] = true;
     }
 }
