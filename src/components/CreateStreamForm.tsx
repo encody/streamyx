@@ -1,7 +1,15 @@
+import { createPayloadBase64 } from '@/types/Payload';
 import { CONTRACT_ADDRESS } from '@/vars';
-import { Input } from '@chakra-ui/react';
+import { Input, Link } from '@chakra-ui/react';
 import { useCreateStream } from '@livepeer/react';
-import { Web3Button, useContract, useContractWrite } from '@thirdweb-dev/react';
+import {
+  Web3Button,
+  useContract,
+  useContractRead,
+  useContractWrite,
+  useTokenDecimals,
+} from '@thirdweb-dev/react';
+import { ethers } from 'ethers';
 import React, { useMemo, useState } from 'react';
 
 export const CreateStreamForm: React.FC = () => {
@@ -24,7 +32,22 @@ export const CreateStreamForm: React.FC = () => {
     mutateAsync: contractCreateWebinar,
     isLoading: isContractLoading,
     error: contractError,
+    
   } = useContractWrite(contract, 'createWebinarFixedRate');
+
+  const payWithTokenIsValidAddress = useMemo(
+    () => ethers.utils.isAddress(payWithToken),
+    [payWithToken],
+  );
+
+  const { contract: payWithTokenContract } = useContract(
+    payWithTokenIsValidAddress ? payWithToken : undefined,
+  );
+
+  const { data: payWithTokenDecimals } = useTokenDecimals(payWithTokenContract);
+  // const payWithTokenDecimals = undefined;
+
+  const streamUrl = useMemo(() => { });
 
   return (
     <div className="flex flex-col p-3 gap-3 w-96">
@@ -44,6 +67,7 @@ export const CreateStreamForm: React.FC = () => {
         type="text"
         placeholder="Viewers pay with token address (optional)"
         value={payWithToken}
+        isInvalid={payWithToken.length > 0 && payWithTokenIsValidAddress}
         onChange={(e) => setPayWithToken(e.target.value)}
       />
       {payWithToken && (
@@ -54,25 +78,30 @@ export const CreateStreamForm: React.FC = () => {
           onChange={(e) => setTokenCostToAttend(parseInt(e.target.value))}
         />
       )}
-
       <div>
         {!!contractError && (
-          <p className="font-bold text-red-600">
-            There was an error connecting to the smart contract.
-          </p>
+          <>
+            <p className="font-bold text-red-600">
+              There was an error connecting to the smart contract.
+            </p>
+            <pre>{JSON.stringify(contractError, null, 2)}</pre>
+          </>
         )}
         {!stream && (
           <Web3Button
             contractAddress={CONTRACT_ADDRESS}
             action={async () => {
-              await contractCreateWebinar({
+              const decimals = payWithTokenDecimals ?? 18;
+              const cost = BigInt(tokenCostToAttend * 10 ** decimals);
+              const res = await contractCreateWebinar({
                 args: [
                   streamName,
-                  nftGateAddress,
-                  payWithToken,
-                  tokenCostToAttend,
+                  nftGateAddress || ethers.constants.AddressZero,
+                  payWithToken || ethers.constants.AddressZero,
+                  cost,
                 ],
               });
+              console.log('got back from contract', res);
               createStream?.();
             }}
             isDisabled={isStreamLoading || !createStream || isContractLoading}
@@ -95,6 +124,20 @@ export const CreateStreamForm: React.FC = () => {
             </p>
             <p>
               <strong>Stream Key:</strong> <code>{stream.streamKey}</code>
+            </p>
+            <p>
+              Save this link (it contains all the information you&apos;ll need):{' '}
+              <Link
+                href={{
+                  pathname: '/webinar/[id]',
+                  query: {
+                    id: 0,
+                    p: createPayloadBase64('streamkey', 'ingesturl'),
+                  },
+                }}
+              >
+                Copy this link!
+              </Link>
             </p>
           </>
         )}

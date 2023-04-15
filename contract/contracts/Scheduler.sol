@@ -32,7 +32,7 @@ contract Scheduler is Ownable2Step {
     address host;
     string description;
     ERC721 nftGate;
-    address payWithToken;
+    ERC20 payWithToken;
     uint256 tokenCostToAttend;
     uint256 startTimestamp;
     uint256 endTimestamp;
@@ -74,6 +74,13 @@ contract Scheduler is Ownable2Step {
   ) public view returns (ERC721 nftGate) {
     Webinar storage webinar = webinars[webinarId];
     nftGate = webinar.nftGate;
+  }
+
+  function getWebinarPayWithToken(
+    uint256 webinarId
+  ) public view returns (ERC20 payWithToken) {
+    Webinar storage webinar = webinars[webinarId];
+    payWithToken = webinar.payWithToken;
   }
 
   function getWebinarTokenCostToAttend(
@@ -191,7 +198,7 @@ contract Scheduler is Ownable2Step {
   function createWebinarFixedRate(
     string calldata description,
     ERC721 nftGate,
-    address payWithToken,
+    ERC20 payWithToken,
     uint256 tokenCostToAttend
   ) public returns (uint256 webinarId) {
     webinarId = webinars.length;
