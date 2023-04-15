@@ -1,0 +1,6 @@
+.next
+contract/artifacts
+contract/cache
+contract/node_modules
+contract/typechain-types
+node_modules

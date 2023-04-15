@@ -1,8 +1,8 @@
-import { ethers } from "hardhat";
+import { ethers } from 'hardhat';
 
 async function main() {
-  const Scheduler = await ethers.getContractFactory("Scheduler");
-  const scheduler = await Scheduler.deploy({ });
+  const Scheduler = await ethers.getContractFactory('Scheduler');
+  const scheduler = await Scheduler.deploy({});
 
   await scheduler.deployed();
 
