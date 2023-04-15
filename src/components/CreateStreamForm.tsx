@@ -1,4 +1,4 @@
-import { createPayloadBase64 } from '@/types/Payload';
+import { createPayloadBase64Url } from '@/types/Payload';
 import { CONTRACT_ADDRESS } from '@/vars';
 import { Input, Link } from '@chakra-ui/react';
 import { useCreateStream } from '@livepeer/react';
@@ -32,7 +32,7 @@ export const CreateStreamForm: React.FC = () => {
     mutateAsync: contractCreateWebinar,
     isLoading: isContractLoading,
     error: contractError,
-    
+
   } = useContractWrite(contract, 'createWebinarFixedRate');
 
   const payWithTokenIsValidAddress = useMemo(
@@ -47,7 +47,7 @@ export const CreateStreamForm: React.FC = () => {
   const { data: payWithTokenDecimals } = useTokenDecimals(payWithTokenContract);
   // const payWithTokenDecimals = undefined;
 
-  const streamUrl = useMemo(() => { });
+  // const streamUrl = useMemo(() => { });
 
   return (
     <div className="flex flex-col p-3 gap-3 w-96">
@@ -127,7 +127,7 @@ export const CreateStreamForm: React.FC = () => {
             </p>
             <p>
               Save this link (it contains all the information you&apos;ll need):{' '}
-              <Link
+              {/* <Link
                 href={{
                   pathname: '/webinar/[id]',
                   query: {
@@ -137,7 +137,7 @@ export const CreateStreamForm: React.FC = () => {
                 }}
               >
                 Copy this link!
-              </Link>
+              </Link> */}
             </p>
           </>
         )}
