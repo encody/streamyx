@@ -2,20 +2,21 @@ import { Player } from '@livepeer/react';
 
 import Image from 'next/image';
 
-const playbackId =
-  'bafybeida3w2w7fch2fy6rfvfttqamlcyxgd3ddbf4u25n7fxzvyvcaegxy';
+import posterImage from '../../public/poster.jpg';
+
+const playbackId = '6bfa5yi0nw1bilo9';
 
 const PosterImage = () => {
   return (
     <Image
       alt="Livestream poster image"
-      src={"/poster.jpg"}
+      src={posterImage}
       fill
       style={{ objectFit: 'cover' }}
       priority
+      placeholder="blur"
     />
   );
-      // placeholder="blur"
 };
 
 export const StreamPlayer = () => {

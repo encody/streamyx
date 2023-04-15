@@ -5,7 +5,7 @@ export default function Home() {
     <main>
       <header>Create a stream</header>
       <div>
-
+        <StreamPlayer />
       </div>
     </main>
   );
