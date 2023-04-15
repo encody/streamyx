@@ -4,10 +4,13 @@ import { Input, Link } from '@chakra-ui/react';
 import { useCreateStream } from '@livepeer/react';
 import {
   Web3Button,
+  useAddress,
   useContract,
+  useContractEvents,
   useContractRead,
   useContractWrite,
   useTokenDecimals,
+  useWallet,
 } from '@thirdweb-dev/react';
 import { ethers } from 'ethers';
 import React, { useMemo, useState } from 'react';
@@ -32,7 +35,6 @@ export const CreateStreamForm: React.FC = () => {
     mutateAsync: contractCreateWebinar,
     isLoading: isContractLoading,
     error: contractError,
-
   } = useContractWrite(contract, 'createWebinarFixedRate');
 
   const payWithTokenIsValidAddress = useMemo(
@@ -45,9 +47,29 @@ export const CreateStreamForm: React.FC = () => {
   );
 
   const { data: payWithTokenDecimals } = useTokenDecimals(payWithTokenContract);
-  // const payWithTokenDecimals = undefined;
 
-  // const streamUrl = useMemo(() => { });
+  const address = useAddress();
+
+  const { data: events } = useContractEvents(contract, 'WebinarCreated', {
+    queryFilter: {
+      filters: {
+        host: address,
+      },
+      order: 'desc',
+    },
+    subscribe: true,
+  });
+
+  const streamUrl = useMemo(() => {
+    if (!stream) return undefined;
+    const latestWebinarId = events?.[0].data.webinarId;
+    console.log({ latestWebinarId });
+    return createPayloadBase64Url(
+      latestWebinarId,
+      stream.streamKey,
+      stream.rtmpIngestUrl,
+    );
+  }, [events, stream]);
 
   return (
     <div className="flex flex-col p-3 gap-3 w-96">
@@ -127,17 +149,7 @@ export const CreateStreamForm: React.FC = () => {
             </p>
             <p>
               Save this link (it contains all the information you&apos;ll need):{' '}
-              {/* <Link
-                href={{
-                  pathname: '/webinar/[id]',
-                  query: {
-                    id: 0,
-                    p: createPayloadBase64('streamkey', 'ingesturl'),
-                  },
-                }}
-              >
-                Copy this link!
-              </Link> */}
+              <Link href={streamUrl}>Copy this link!</Link>
             </p>
           </>
         )}

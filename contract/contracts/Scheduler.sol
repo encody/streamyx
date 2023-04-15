@@ -15,6 +15,7 @@ contract Scheduler is Ownable2Step {
   using SafeCast for int96;
   using SuperTokenV1Library for ISuperToken;
 
+  event WebinarCreated(address indexed host, uint256 webinarId);
   event WebinarStarted(uint256 webinarId);
   event WebinarEnded(uint256 webinarId);
   event SponsorshipProposed(
@@ -209,6 +210,8 @@ contract Scheduler is Ownable2Step {
     webinar.nftGate = nftGate;
     webinar.payWithToken = payWithToken;
     webinar.tokenCostToAttend = tokenCostToAttend;
+
+    emit WebinarCreated(msg.sender, webinarId);
   }
 
   function startWebinar(uint256 webinarId) public {

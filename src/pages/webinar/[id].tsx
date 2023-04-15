@@ -51,6 +51,18 @@ export default function CreatePage() {
   const { contract: payWithTokenContract } = useContract(webinarPayWithToken);
   const { data: payWithTokenDecimals } = useTokenDecimals(payWithTokenContract);
 
+  const costToAttendString = useMemo(() => {
+    if (
+      payWithTokenDecimals === undefined ||
+      webinarTokenCostToAttend === undefined
+    )
+      return 0;
+
+    return BigInt(
+      webinarTokenCostToAttend / 10 ** (payWithTokenDecimals ?? 18),
+    ).toLocaleString();
+  }, [payWithTokenDecimals, webinarTokenCostToAttend]);
+
   return (
     <main>
       <header>Manage webinar</header>
@@ -80,28 +92,36 @@ export default function CreatePage() {
               </tr>
               <tr>
                 <td>Token Cost To Attend</td>
-                <td>{webinarTokenCostToAttend}</td>
+                <td>{costToAttendString}</td>
+              </tr>
+              <tr>
+                <td>Stream Ingest URL</td>
+                <td>{payload?.streamIngestUrl}</td>
+              </tr>
+              <tr>
+                <td>Stream Key</td>
+                <td>{payload?.streamKey}</td>
               </tr>
             </tbody>
           </table>
 
-          {/* A link to the stream */}
+          {/* A link to the stream
           <a
             href={`https://livepeer.com/app/stream/${webinarId}`}
             target="_blank"
             rel="noreferrer"
           >
             Open stream
-          </a>
+          </a> */}
 
           {/* A link to the stream player */}
-          <a
+          {/* <a
             href={`https://livepeer.com/app/stream/${webinarId}/player`}
             target="_blank"
             rel="noreferrer"
           >
             Open stream player
-          </a>
+          </a> */}
         </>
       )}
     </main>
