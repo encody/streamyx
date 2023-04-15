@@ -1,23 +1,31 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { 
     ISuperfluid 
 } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluid.sol";
-
 import { 
     ISuperToken 
 } from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperToken.sol";
-
 import {
     SuperTokenV1Library
 } from "@superfluid-finance/ethereum-contracts/contracts/apps/SuperTokenV1Library.sol";
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-
-contract Scheduler {
+contract Scheduler is Ownable2Step {
+    using SafeCast for uint256;
+    using SafeCast for uint96;
+    using SafeCast for int96;
     using SuperTokenV1Library for ISuperToken;
+
+    event WebinarStarted(uint256 webinarId);
+    event WebinarEnded(uint256 webinarId);
+    event SponsorshipProposed(address indexed sponsor, address indexed host, uint256 sponsorshipId);
+    event SponsorshipAccepted(address indexed sponsor, address indexed host, uint256 sponsorshipId);
 
     struct Webinar {
         address host;
@@ -25,33 +33,70 @@ contract Scheduler {
         ERC721 nftGate;
         address payWithToken;
         uint256 tokenCostToAttend;
-        int96 tokenRate;
         uint256 startTimestamp;
         uint256 endTimestamp;
+        uint256 sponsorshipIndexPlusOne;
         address[] attendeesList;
+        mapping(address => uint256) attendeesMapToListIndexPlusOne;
+    }
+
+    struct Sponsorship {
+        address sponsor;
+        address host;
+        ERC721 nftGate;
+        ISuperToken payWithToken;
+        int96 tokenRate;
+        uint32 targetAttendance;
+        bool isAccepted;
     }
 
     Webinar[] webinars;
+    Sponsorship[] sponsorships;
+    int96 contractFeeInThousanths;
 
-    function createWebinarFlow(
-        string calldata description,
+    function ownerWithdrawErc20(address token, uint256 amount) public onlyOwner {
+        require(token != address(0));
+        require(amount != 0);
+        ERC20(token).transfer(owner(), amount);
+    }
+
+    function proposeSponsorship(
+        address host,
         ERC721 nftGate,
-        address payWithToken,
-        int96 tokenRate
-    ) public returns(uint256 webinarId) {
-        require(payWithToken != address(0), "flow token address must be nonzero");
-        require(tokenRate > 0, "tokenRate must not be zero");
+        ISuperToken payWithToken,
+        int96 tokenRate,
+        uint32 targetAttendance
+    ) public returns(uint256 sponsorshipId) {
+        sponsorshipId = sponsorships.length;
+
+        sponsorships.push(Sponsorship({
+            sponsor: msg.sender,
+            host: host,
+            nftGate: nftGate,
+            payWithToken: payWithToken,
+            tokenRate: tokenRate,
+            targetAttendance: targetAttendance,
+            isAccepted: false
+        }));
+
+        emit SponsorshipProposed(msg.sender, host, sponsorshipId);
+    }
+
+    function acceptSponsorshipProposal(uint256 sponsorshipId, string calldata description) public returns(uint256 webinarId) {
+        require(sponsorshipId < sponsorships.length, "sponsorship proposal does not exist");
+        Sponsorship storage proposal = sponsorships[sponsorshipId];
+        require(!proposal.isAccepted, "proposal has already been accepted");
+        require(proposal.host == msg.sender, "msg.sender cannot accept this proposal");
+
+        proposal.isAccepted = true;
 
         webinarId = webinars.length;
 
-        Webinar memory webinar;
-        webinar.host = msg.sender;
+        Webinar storage webinar = webinars.push();
+        webinar.host = proposal.host;
         webinar.description = description;
-        webinar.nftGate = nftGate;
-        webinar.payWithToken = payWithToken;
-        webinar.tokenRate = tokenRate;
-
-        webinars.push(webinar);
+        webinar.nftGate = proposal.nftGate;
+        webinar.sponsorshipIndexPlusOne = sponsorshipId + 1;
     }
 
     function createWebinarFixedRate(
@@ -62,14 +107,12 @@ contract Scheduler {
     ) public returns(uint256 webinarId) {
         webinarId = webinars.length;
 
-        Webinar memory webinar;
+        Webinar storage webinar = webinars.push();
         webinar.host = msg.sender;
         webinar.description = description;
         webinar.nftGate = nftGate;
         webinar.payWithToken = payWithToken;
         webinar.tokenCostToAttend = tokenCostToAttend;
-
-        webinars.push(webinar);
     }
 
     function startWebinar(uint256 webinarId) public {
@@ -80,11 +123,13 @@ contract Scheduler {
 
         webinar.startTimestamp = block.timestamp;
 
-        if (address(webinar.payWithToken) != address(0) && webinar.tokenRate > 0) {
-            for (uint256 i = 0; i < webinar.attendeesList.length; i++) {
-                address attendee = webinar.attendeesList[i];
-                ISuperToken(webinar.payWithToken).createFlowFrom(attendee, webinar.host, webinar.tokenRate);
-            }
+        if (webinar.sponsorshipIndexPlusOne != 0) {
+            Sponsorship storage sponsorship = sponsorships[webinar.sponsorshipIndexPlusOne - 1];
+            int96 rateToContract = sponsorship.tokenRate * contractFeeInThousanths / 1000;
+            int96 rateToHost = sponsorship.tokenRate - rateToContract;
+
+            sponsorship.payWithToken.createFlowFrom(sponsorship.sponsor, webinar.host, rateToHost);
+            sponsorship.payWithToken.createFlowFrom(sponsorship.sponsor, address(this), rateToContract);
         }
     }
 
@@ -97,32 +142,37 @@ contract Scheduler {
 
         webinar.endTimestamp = block.timestamp;
 
-        if (address(webinar.payWithToken) != address(0) && webinar.tokenRate > 0) {
-            for (uint256 i = 0; i < webinar.attendeesList.length; i++) {
-                address attendee = webinar.attendeesList[i];
-                ISuperToken(webinar.payWithToken).deleteFlowFrom(attendee, webinar.host);
-            }
+        if (webinar.sponsorshipIndexPlusOne != 0) {
+            Sponsorship storage sponsorship = sponsorships[webinar.sponsorshipIndexPlusOne - 1];
+
+            sponsorship.payWithToken.deleteFlowFrom(sponsorship.sponsor, webinar.host);
+            sponsorship.payWithToken.deleteFlowFrom(sponsorship.sponsor, address(this));
         }
     }
 
     function attendWebinar(uint256 webinarId) public {
         require(webinarId < webinars.length, "webinar does not exist");
         Webinar storage webinar = webinars[webinarId];
-        // TODO: efficient / fair dup attendee check
+        require(webinar.attendeesMapToListIndexPlusOne[msg.sender] == 0, "msg.sender is already marked as attending");
+
+        uint256 attendeeIndex = webinar.attendeesList.length;
+        webinar.attendeesList.push(msg.sender);
+        webinar.attendeesMapToListIndexPlusOne[msg.sender] = attendeeIndex + 1;
 
         if (address(webinar.nftGate) != address(0)) {
             uint256 balance = webinar.nftGate.balanceOf(msg.sender);
             require(balance > 0, "missing NFT gate");
         }
 
-        if (address(webinar.payWithToken) != address(0)) {
-            if (webinar.tokenRate > 0) {
-                // flow starts when the webinar starts
-            } else if (webinar.tokenCostToAttend > 0) {
-                ERC20(webinar.payWithToken).transferFrom(msg.sender, webinar.host, webinar.tokenCostToAttend);
-            }
-        }
+        if (address(webinar.payWithToken) != address(0) && webinar.tokenCostToAttend > 0) {
+            ERC20 paymentToken = ERC20(webinar.payWithToken);
+            uint256 amountToContract = webinar.tokenCostToAttend * contractFeeInThousanths.toUint256() / 1000;
+            uint256 amountToHost = webinar.tokenCostToAttend - amountToContract;
 
-        webinar.attendeesList.push(msg.sender);
+            paymentToken.transferFrom(msg.sender, webinar.host, amountToHost);
+            paymentToken.transferFrom(msg.sender, address(this), amountToContract);
+        }
     }
+
+    // function addressAttendsWebinar
 }
